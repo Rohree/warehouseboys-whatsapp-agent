@@ -1,0 +1,69 @@
+openapi: 3.0.0
+info:
+  title: Warehouse Boys Lead Intake
+  version: 1.0.0
+  description: >
+    Called once a WhatsApp lead has answered the qualifying questions.
+    Creates a task in ClickUp with the collected details.
+servers:
+  - url: https://REPLACE-WITH-DEPLOYED-SITE.netlify.app/.netlify/functions
+paths:
+  /create-lead:
+    post:
+      operationId: createLead
+      summary: Log a qualified WhatsApp lead into ClickUp
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [customer_name, phone, category]
+              properties:
+                customer_name:
+                  type: string
+                  description: The lead's name
+                phone:
+                  type: string
+                  description: The lead's WhatsApp number (with country code)
+                category:
+                  type: string
+                  enum: [Custom Signage, Gates, Architectural Features, Shop Product, "Site Visit (Callout)", Other]
+                  description: What the customer is enquiring about
+                project_details:
+                  type: string
+                  description: Brief description of what they want made (size, material, design idea)
+                location:
+                  type: string
+                  description: Customer's city or suburb
+                timeline:
+                  type: string
+                  enum: [ASAP, Within a month, 1-3 months, Just exploring]
+                budget:
+                  type: string
+                  description: Budget range, if given
+                opt_in:
+                  type: boolean
+                  description: Whether the customer agreed to receive offers/updates
+      responses:
+        '200':
+          description: Lead logged successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  taskId:
+                    type: string
+                  status:
+                    type: string
+                    enum: [hot, warm, cold]
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
