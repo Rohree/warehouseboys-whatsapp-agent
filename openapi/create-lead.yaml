@@ -6,7 +6,7 @@ info:
     Called once a WhatsApp lead has answered the qualifying questions.
     Creates a task in ClickUp with the collected details.
 servers:
-  - url: https://REPLACE-WITH-DEPLOYED-SITE.netlify.app/.netlify/functions
+  - url: https://warehouseboys-wa-lead.netlify.app/.netlify/functions
 paths:
   /create-lead:
     post:
