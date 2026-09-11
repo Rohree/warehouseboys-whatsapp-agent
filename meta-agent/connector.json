@@ -1,0 +1,20 @@
+{
+  "name": "Warehouse Boys Lead Intake",
+  "description": "Logs a qualified WhatsApp lead into ClickUp once the qualifying questions have been answered.",
+  "base_url": "https://warehouseboys-wa-lead.netlify.app/.netlify/functions",
+  "connector_protocol": "HTTP",
+  "auth_type": "API_KEY",
+  "auth_config": {
+    "api_key": {
+      "headers": [
+        {
+          "field_name": "Authorization",
+          "value": "REPLACE_WITH_META_CONNECTOR_SHARED_SECRET",
+          "prefix": "Bearer "
+        }
+      ],
+      "query_params": [],
+      "body_params": []
+    }
+  }
+}

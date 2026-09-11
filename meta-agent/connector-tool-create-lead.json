@@ -1,0 +1,50 @@
+{
+  "name": "create_lead",
+  "description": "Use this tool once a WhatsApp lead has answered all of the qualifying questions (what they're looking for, project details, location, timeline, budget, their name, and whether they opt in to offers/updates). Logs the lead as a task in ClickUp, tagged hot, warm, or cold based on their stated timeline. Call this exactly once per qualified lead, after all answers are collected.",
+  "request_definition": {
+    "method": "POST",
+    "path": "/create-lead",
+    "path_parameters": {},
+    "query_parameters": {},
+    "headers": {},
+    "body": {
+      "content_type": "application/json",
+      "params": {
+        "customer_name": {
+          "type": "string",
+          "description": "The lead's name."
+        },
+        "phone": {
+          "type": "string",
+          "description": "The lead's WhatsApp number, with country code, e.g. +27821234567."
+        },
+        "category": {
+          "type": "string",
+          "description": "What the customer is enquiring about. One of: Custom Signage, Gates, Architectural Features, Shop Product, Site Visit (Callout), Other."
+        },
+        "project_details": {
+          "type": "string",
+          "description": "Brief description of what they want made (size, material, design idea)."
+        },
+        "location": {
+          "type": "string",
+          "description": "Customer's city or suburb."
+        },
+        "timeline": {
+          "type": "string",
+          "description": "One of: ASAP, Within a month, 1-3 months, Just exploring."
+        },
+        "budget": {
+          "type": "string",
+          "description": "Budget range, if given."
+        },
+        "opt_in": {
+          "type": "boolean",
+          "description": "Whether the customer agreed to receive offers and updates."
+        }
+      },
+      "required": ["customer_name", "phone", "category"]
+    }
+  },
+  "user_auth_required": false
+}
