@@ -1,13 +1,4 @@
-const axios = require('axios');
-
-const CATEGORIES = ['Custom Signage', 'Gates', 'Architectural Features', 'Shop Product', 'Site Visit (Callout)', 'Other'];
-const TIMELINES = ['ASAP', 'Within a month', '1-3 months', 'Just exploring'];
-
-function leadStatus(timeline) {
-  if (timeline === 'ASAP' || timeline === 'Within a month') return 'hot';
-  if (timeline === '1-3 months') return 'warm';
-  return 'cold';
-}
+const { CATEGORIES, TIMELINES, createClickUpTask } = require('./lib/lead');
 
 function checkAuth(event) {
   const expected = process.env.META_CONNECTOR_SHARED_SECRET;
@@ -43,17 +34,6 @@ exports.handler = async (event) => {
     };
   }
 
-  const CLICKUP_TOKEN = process.env.CLICKUP_API_TOKEN;
-  const LIST_ID = process.env.CLICKUP_LIST_ID_WHATSAPP_LEADS;
-
-  if (!CLICKUP_TOKEN || !LIST_ID) {
-    return {
-      statusCode: 500,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: 'Server misconfiguration: missing ClickUp token or list ID' }),
-    };
-  }
-
   let lead;
   try {
     lead = JSON.parse(event.body);
@@ -66,67 +46,19 @@ exports.handler = async (event) => {
     };
   }
 
-  const { customer_name, phone, category, project_details, location, timeline, budget, opt_in } = lead;
-
-  if (!customer_name || !phone || !category) {
-    return {
-      statusCode: 400,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ error: 'Missing required fields: customer_name, phone, category' }),
-    };
-  }
-
-  const status = leadStatus(timeline);
-
-  const task = {
-    name: `WhatsApp Lead: ${customer_name} (${category})`,
-    description: `
-**Contact Information:**
-- **Name:** ${customer_name}
-- **WhatsApp:** ${phone}
-
-**Enquiry:**
-- **Category:** ${category}
-- **Details:** ${project_details || 'Not provided'}
-- **Location:** ${location || 'Not provided'}
-- **Timeline:** ${timeline || 'Not provided'}
-- **Budget:** ${budget || 'Not provided'}
-- **Opted in to promotions:** ${opt_in === true ? 'Yes' : opt_in === false ? 'No' : 'Not answered'}
-
-**Lead status:** ${status.toUpperCase()}
-**Submitted:** ${new Date().toLocaleString()}
-    `.trim(),
-    tags: ['whatsapp-lead', status, category.toLowerCase().replace(/\s+/g, '-')],
-    custom_fields: [],
-  };
-
   try {
-    const response = await axios.post(
-      `https://api.clickup.com/api/v2/list/${LIST_ID}/task`,
-      task,
-      {
-        headers: {
-          Authorization: CLICKUP_TOKEN,
-          'Content-Type': 'application/json',
-        },
-        timeout: 10000,
-      }
-    );
-
+    const { taskId, status } = await createClickUpTask(lead);
     return {
       statusCode: 200,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ success: true, taskId: response.data.id, status }),
+      body: JSON.stringify({ success: true, taskId, status }),
     };
   } catch (err) {
-    console.error('ClickUp API error:', err.response?.status, err.response?.data || err.message);
+    console.error('createClickUpTask error:', err.statusCode, err.details || err.message);
     return {
-      statusCode: err.response?.status || 500,
+      statusCode: err.statusCode || 500,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        error: 'Failed to create ClickUp task',
-        details: err.response?.data?.err || err.message,
-      }),
+      body: JSON.stringify({ error: err.message, details: err.details }),
     };
   }
 };

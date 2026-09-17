@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "dependencies": {
+    "@netlify/blobs": "^11.1.0",
     "@netlify/functions": "^4.1.13",
     "axios": "^1.11.0"
   }
