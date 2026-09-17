@@ -1,25 +1,30 @@
 # Warehouse Boys WhatsApp Agent
 
-Connects Meta Business Agent (running on the Warehouse Boys WhatsApp number) to ClickUp.
-Meta's AI runs the actual lead-qualification conversation in WhatsApp; this repo is just
-the one API endpoint it calls once a lead is qualified, which logs the lead as a ClickUp task.
+Runs the WhatsApp lead-qualification conversation directly against WhatsApp's Cloud API and
+logs the result as a ClickUp task. Built to bypass Meta Business Agent, which requires a
+Tech Provider access-verification review that was still pending as of Sep 2026 — see
+"Meta Business Agent (parked)" below if that ever clears.
 
 ## How it fits together
 
-1. **Meta Business Agent** (configured in Meta Business Suite, on the existing WhatsApp
-   Business Account) has a "skill"/knowledge source describing Warehouse Boys and a
-   qualifying question script (see below).
-2. It's registered with a **custom connector** pointing at `openapi/create-lead.yaml`,
-   so the agent can call `POST /create-lead` as a tool once it has collected the answers.
-3. `netlify/functions/create-lead.js` receives that call and creates a task in the
-   `CLICKUP_LIST_ID_WHATSAPP_LEADS` list, tagged `hot` / `warm` / `cold` based on timeline.
+1. A customer messages the Warehouse Boys WhatsApp number. Meta's Cloud API delivers the
+   message to `netlify/functions/whatsapp-webhook.js` via webhook.
+2. That function walks the customer through a fixed qualifying-question script (see below),
+   one WhatsApp interactive list/button message at a time, tracking progress per phone number
+   in Netlify Blobs (`netlify/functions/lib/conversation-store.js`).
+3. Once all questions are answered, it creates a task in the `CLICKUP_LIST_ID_WHATSAPP_LEADS`
+   list via `netlify/functions/lib/lead.js` (shared ClickUp task-creation logic, tagged
+   `hot` / `warm` / `cold` based on timeline) and sends a confirmation reply.
+4. Outgoing WhatsApp messages (text, buttons, lists) go through
+   `netlify/functions/lib/whatsapp.js`, a thin wrapper around the Graph API `/messages`
+   endpoint.
 
 This mirrors the pattern already used in `wb-website-v2/netlify/functions/clickUpCustom.js`
 for the website's other lead forms.
 
-## Qualifying question script (configure in Meta Business Suite's Business Agent settings)
+## Qualifying question script
 
-1. "Hi! Thanks for reaching out to Warehouse Boys. What are you looking for?"
+1. "Hi! Thanks for reaching out to Warehouse Boys 👋 What are you looking for?"
    — Custom Signage / Gates / Architectural Features / Shop Product / Site Visit (Callout) / Other
 2. "Tell us briefly what you have in mind" (size, material, design idea)
 3. "Where are you located?" (city/suburb)
@@ -28,39 +33,52 @@ for the website's other lead forms.
 6. "What's your name?"
 7. "Can we send you offers and updates?" — Yes/No
 
-Once all answered, the agent should call the `createLead` action with the collected values.
+Defined in `STEPS` in `whatsapp-webhook.js` — edit that array to change the script.
 
 ## Setup
 
 ```
 npm install
-cp .env.example .env   # fill in CLICKUP_API_TOKEN, CLICKUP_LIST_ID_WHATSAPP_LEADS
+cp .env.example .env   # fill in the values below
 netlify dev             # runs on http://localhost:8889
 ```
+
+Required env vars (see `.env.example`):
+
+- `CLICKUP_API_TOKEN`, `CLICKUP_LIST_ID_WHATSAPP_LEADS` — where leads get logged.
+- `WHATSAPP_PHONE_NUMBER_ID` — the Cloud API phone number ID messages are sent from.
+- `META_SYSTEM_USER_ACCESS_TOKEN` — system user token with `whatsapp_business_messaging`
+  scope, used to call the Graph API `/messages` endpoint.
+- `META_WEBHOOK_VERIFY_TOKEN` — value Meta echoes back during the webhook verify handshake
+  (GET request with `hub.mode`/`hub.verify_token`/`hub.challenge`).
+- `META_CONNECTOR_SHARED_SECRET` — only used by `create-lead.js` (see below), not by the
+  webhook flow.
+
+## Deploying + registering the webhook with Meta
+
+1. Deploy to Netlify (`netlify deploy --prod`). This site is **not** linked to GitHub for
+   auto-deploy, so pushing to GitHub alone does not ship it — always deploy explicitly.
+2. Sync env vars to the deployed site: `netlify env:import .env` (merges, use
+   `--replace-existing` to overwrite instead).
+3. In the Meta App Dashboard, under WhatsApp → Configuration → Webhook, set:
+   - **Callback URL**: `https://<your-site>.netlify.app/.netlify/functions/whatsapp-webhook`
+   - **Verify Token**: your `META_WEBHOOK_VERIFY_TOKEN` value
+   - Click **Verify and Save**, then subscribe to the **`messages`** webhook field.
 
 Test locally:
 
 ```bash
-curl -X POST http://localhost:8889/.netlify/functions/create-lead \
+curl -X POST http://localhost:8889/.netlify/functions/whatsapp-webhook \
   -H "Content-Type: application/json" \
-  -d '{"customer_name":"Test Lead","phone":"+27821234567","category":"Custom Signage","project_details":"1m steel house number sign","location":"Cape Town","timeline":"Within a month","budget":"R2000-R4000","opt_in":true}'
+  -d '{"entry":[{"changes":[{"value":{"messages":[{"from":"27821234567","type":"text","text":{"body":"hi"}}]}}}]}]}'
 ```
 
-## Deploying + registering with Meta
+## Meta Business Agent (parked)
 
-1. Deploy this to Netlify, note the live URL.
-2. Update `servers.url` in `openapi/create-lead.yaml` to the deployed URL.
-3. Set `META_CONNECTOR_SHARED_SECRET` in the Netlify site's environment variables, and
-   configure the same value as the bearer token when registering the custom connector
-   in Meta Business Agent Platform.
-4. In Meta Business Suite → Business Agent settings for the Warehouse Boys number:
-   register the custom connector using the OpenAPI spec above, and add the qualifying
-   question script as a skill/instruction.
-
-## Known unknowns — verify against real traffic before relying on this
-
-Meta's exact request format for custom connector calls (auth header style, whether it
-follows the general WhatsApp webhook envelope vs. a direct tool-call body) wasn't fully
-documented as of this build (Aug 2026). `create-lead.js` logs the full incoming payload
-on every call — check Netlify function logs after the first real test message and adjust
-field parsing/auth if Meta's actual payload shape differs from what's assumed here.
+`netlify/functions/create-lead.js` and the `meta-agent/` folder (connector/tool/skill
+payloads + setup runbook) are left over from an earlier approach where Meta's own AI agent
+would run the conversation and call `create-lead.js` as a tool once a lead was qualified.
+That path is blocked on a Meta Tech Provider access-verification review with no ETA, so the
+webhook approach above is the one actually running. If the Business Agent review ever
+clears, `meta-agent/SETUP.md` still has the registration steps — otherwise these files can
+be deleted.
