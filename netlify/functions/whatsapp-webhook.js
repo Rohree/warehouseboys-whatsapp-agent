@@ -104,6 +104,17 @@ async function finalizeLead(from, answers) {
   }
 }
 
+// If TEST_MODE_ALLOWED_NUMBERS is set, only those numbers get a response - everyone else is
+// silently ignored (no reply, same as if the bot didn't exist). Unset it to go live for everyone.
+function isAllowedNumber(from) {
+  const allowed = (process.env.TEST_MODE_ALLOWED_NUMBERS || '')
+    .split(',')
+    .map((n) => n.trim())
+    .filter(Boolean);
+  if (allowed.length === 0) return true;
+  return allowed.includes(from);
+}
+
 async function handleMessage(message) {
   const from = message.from;
   const conversation = await getConversation(from);
@@ -166,6 +177,7 @@ exports.handler = async (event) => {
   try {
     const messages = payload.entry?.[0]?.changes?.[0]?.value?.messages || [];
     for (const message of messages) {
+      if (!isAllowedNumber(message.from)) continue;
       await handleMessage(message);
     }
   } catch (err) {
